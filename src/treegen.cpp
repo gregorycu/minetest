@@ -22,6 +22,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "util/pointer.h"
 #include "util/numeric.h"
 #include "util/mathconstants.h"
+#include "util/timetaker.h"
 #include "map.h"
 #include "environment.h"
 #include "nodedef.h"
@@ -115,6 +116,8 @@ void make_tree(MMVManip &vmanip, v3s16 p0,
 treegen::error spawn_ltree(ServerEnvironment *env, v3s16 p0,
 		INodeDefManager *ndef, TreeDef tree_definition)
 {
+	TimeTaker timer("spawn_ltree", NULL, PRECISION_MICRO);
+
 	ServerMap *map = &env->getServerMap();
 	std::map<v3s16, MapBlock*> modified_blocks;
 	MMVManip vmanip(map);
@@ -140,6 +143,8 @@ treegen::error spawn_ltree(ServerEnvironment *env, v3s16 p0,
 			i != modified_blocks.end(); ++i)
 		event.modified_blocks.insert(i->first);
 	map->dispatchEvent(&event);
+
+	errorstream << "spawn_ltree: " << timer.stop() << " us" << std::endl;
 	return SUCCESS;
 }
 

@@ -912,8 +912,13 @@ void Map::updateLighting(enum LightBank bank,
 void Map::updateLighting(std::map<v3s16, MapBlock*> & a_blocks,
 		std::map<v3s16, MapBlock*> & modified_blocks)
 {
+	TimeTaker t0("updateLighting", NULL, PRECISION_MICRO);
 	updateLighting(LIGHTBANK_DAY, a_blocks, modified_blocks);
+	errorstream << "updateLighting(D): " << t0.stop() << " us" << std::endl;
+
+	TimeTaker t1("updateLighting", NULL, PRECISION_MICRO);
 	updateLighting(LIGHTBANK_NIGHT, a_blocks, modified_blocks);
+	errorstream << "updateLighting(N): " << t1.stop() << " us" << std::endl;
 
 	/*
 		Update information about whether day and night light differ
