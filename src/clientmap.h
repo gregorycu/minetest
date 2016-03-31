@@ -60,6 +60,20 @@ class ITextureSource;
 	This is the only map class that is able to render itself on screen.
 */
 
+class BlockLocker
+{
+public:
+	Mutex& operator[](v3s16 p)
+	{
+		MutexAutoLock lock(m_map_mutex);
+		return m_block_mutexes[p];
+	}
+
+private:
+	Mutex m_map_mutex;
+	std::map<v3s16, Mutex> m_block_mutexes;
+};
+
 class ClientMap : public Map, public scene::ISceneNode
 {
 public:
@@ -155,6 +169,35 @@ private:
 	bool m_cache_trilinear_filter;
 	bool m_cache_bilinear_filter;
 	bool m_cache_anistropic_filter;
+
+	BlockLocker m_block_locker;
+	friend class ThreadSafeBlockCopier;
+};
+
+
+
+class ThreadSafeBlockCopier
+{
+public:
+
+	ThreadSafeBlockCopier(ClientMap& map) :
+		m_map(map)
+	{
+	}
+	void copy(v3s16 p, VoxelManipulator& vmanip)
+	{
+		MutexAutoLock lock(m_map.m_block_locker[p]);
+		MapBlock *b = m_map.getBlockNoCreateNoEx(p);
+		if (b)
+			b->copyTo(vmanip);
+	}
+	ThreadSafeBlockCopier(const ThreadSafeBlockCopier& rhs) :
+		m_map(rhs.m_map)
+	{
+	}
+private:
+	ClientMap & m_map;
+
 };
 
 #endif

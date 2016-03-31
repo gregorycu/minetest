@@ -32,6 +32,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "settings.h"
 #include "util/directiontables.h"
 #include <IMeshManipulator.h>
+#include "clientmap.h"
 
 static void applyFacesShading(video::SColor &color, const float factor)
 {
@@ -62,13 +63,13 @@ void MeshMakeData::fill(MapBlock *block)
 	v3s16 blockpos_nodes = m_blockpos*MAP_BLOCKSIZE;
 
 	/*
-		Copy data
+	Copy data
 	*/
 
 	// Allocate this block + neighbors
 	m_vmanip.clear();
-	VoxelArea voxel_area(blockpos_nodes - v3s16(1,1,1) * MAP_BLOCKSIZE,
-			blockpos_nodes + v3s16(1,1,1) * MAP_BLOCKSIZE*2-v3s16(1,1,1));
+	VoxelArea voxel_area(blockpos_nodes - v3s16(1, 1, 1) * MAP_BLOCKSIZE,
+		blockpos_nodes + v3s16(1, 1, 1) * MAP_BLOCKSIZE * 2 - v3s16(1, 1, 1));
 	m_vmanip.addArea(voxel_area);
 
 	{
@@ -83,19 +84,19 @@ void MeshMakeData::fill(MapBlock *block)
 		// 0ms
 
 		/*
-			Copy neighbors. This is lightning fast.
-			Copying only the borders would be *very* slow.
+		Copy neighbors. This is lightning fast.
+		Copying only the borders would be *very* slow.
 		*/
 
 		// Get map
 		Map *map = block->getParent();
 
-		for(u16 i=0; i<26; i++)
+		for (u16 i = 0; i<26; i++)
 		{
 			const v3s16 &dir = g_26dirs[i];
 			v3s16 bp = m_blockpos + dir;
 			MapBlock *b = map->getBlockNoCreateNoEx(bp);
-			if(b)
+			if (b)
 				b->copyTo(m_vmanip);
 		}
 	}
@@ -1030,6 +1031,7 @@ MapBlockMesh::MapBlockMesh(MeshMakeData *data, v3s16 camera_offset):
 	m_last_daynight_ratio((u32) -1),
 	m_daynight_diffs()
 {
+	data->preProcess();
 	m_enable_shaders = data->m_use_shaders;
 	m_use_tangent_vertices = data->m_use_tangent_vertices;
 	m_enable_vbo = g_settings->getBool("enable_vbo");

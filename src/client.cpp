@@ -1581,24 +1581,48 @@ void Client::typeChatMessage(const std::wstring &message)
 	}
 }
 
+
+struct DeferredCopyBlockMeshMakeData : public MeshMakeData
+{
+	DeferredCopyBlockMeshMakeData(IGameDef *gamedef, ThreadSafeBlockCopier block_copier, bool use_shaders, bool use_tangent_vertices = false) :
+	m_block_copier(block_copier), MeshMakeData(gamedef, use_shaders, m_use_tangent_vertices){}
+
+	ThreadSafeBlockCopier m_block_copier;
+
+	virtual void preProcess()
+	{
+		v3s16 blockpos_nodes = m_blockpos*MAP_BLOCKSIZE;
+
+		// Allocate this block + neighbors
+		m_vmanip.clear();
+		VoxelArea voxel_area(blockpos_nodes - v3s16(1, 1, 1) * MAP_BLOCKSIZE,
+			blockpos_nodes + v3s16(1, 1, 1) * MAP_BLOCKSIZE * 2 - v3s16(1, 1, 1));
+		m_vmanip.addArea(voxel_area);
+
+		m_block_copier.copy(m_blockpos, m_vmanip);
+
+		for (u16 i = 0; i<26; i++)
+		{
+			const v3s16 &dir = g_26dirs[i];
+			m_block_copier.copy(m_blockpos + dir, m_vmanip);
+		}
+	}
+};
+
 void Client::addUpdateMeshTask(v3s16 p, bool ack_to_server, bool urgent)
 {
-	MapBlock *b = m_env.getMap().getBlockNoCreateNoEx(p);
-	if(b == NULL)
-		return;
-
 	/*
 		Create a task to update the mesh of the block
 	*/
 
-	MeshMakeData *data = new MeshMakeData(this, m_cache_enable_shaders,
+	DeferredCopyBlockMeshMakeData *data = new DeferredCopyBlockMeshMakeData(this, ThreadSafeBlockCopier(m_env.getClientMap()), m_cache_enable_shaders,
 		m_cache_use_tangent_vertices);
 
 	{
 		//TimeTaker timer("data fill");
 		// Release: ~0ms
 		// Debug: 1-6ms, avg=2ms
-		data->fill(b);
+		data->m_blockpos = p;
 		data->setCrack(m_crack_level, m_crack_pos);
 		data->setSmoothLighting(m_cache_smooth_lighting);
 	}

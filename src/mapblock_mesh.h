@@ -36,6 +36,7 @@ class IShaderSource;
 
 class MapBlock;
 struct MinimapMapblock;
+class ThreadSafeBlockCopier;
 
 struct MeshMakeData
 {
@@ -50,11 +51,11 @@ struct MeshMakeData
 	bool m_use_tangent_vertices;
 
 	MeshMakeData(IGameDef *gamedef, bool use_shaders,
-			bool use_tangent_vertices = false);
+		bool use_tangent_vertices = false);
 
 	/*
-		Copy central data directly from block, and other data from
-		parent of block.
+	Copy central data directly from block, and other data from
+	parent of block.
 	*/
 	void fill(MapBlock *block);
 
@@ -72,6 +73,9 @@ struct MeshMakeData
 		Enable or disable smooth lighting
 	*/
 	void setSmoothLighting(bool smooth_lighting);
+
+	virtual void preProcess() { }
+	virtual ~MeshMakeData() {}
 };
 
 /*
