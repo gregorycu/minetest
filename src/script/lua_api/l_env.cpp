@@ -35,6 +35,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "treegen.h"
 #include "emerge.h"
 #include "pathfinder.h"
+#include "better_pathfinder.h"
 
 struct EnumString ModApiEnvMod::es_ClearObjectsMode[] =
 {
@@ -904,6 +905,18 @@ int ModApiEnvMod::l_delete_area(lua_State *L)
 	return 1;
 }
 
+namespace
+{
+	// Helper used below
+	template <typename T>
+	struct name_to_function
+	{
+		const char* name;
+		typedef void(BetterPathfinder::*function_t)(T);
+		function_t function;
+	};
+}
+
 // find_path(pos1, pos2, searchdistance,
 //     max_jump, max_drop, algorithm) -> table containing path
 int ModApiEnvMod::l_find_path(lua_State *L)
@@ -913,21 +926,83 @@ int ModApiEnvMod::l_find_path(lua_State *L)
 	v3s16 pos1                  = read_v3s16(L, 1);
 	v3s16 pos2                  = read_v3s16(L, 2);
 	unsigned int searchdistance = luaL_checkint(L, 3);
-	unsigned int max_jump       = luaL_checkint(L, 4);
-	unsigned int max_drop       = luaL_checkint(L, 5);
-	PathAlgorithm algo          = PA_PLAIN_NP;
-	if (!lua_isnil(L, 6)) {
-		std::string algorithm = luaL_checkstring(L,6);
 
-		if (algorithm == "A*")
-			algo = PA_PLAIN;
+	unsigned api_version = 0;
+	if (lua_istable(L, 4))
+		api_version = 1;
 
-		if (algorithm == "Dijkstra")
-			algo = PA_DIJKSTRA;
+	std::vector<v3s16> path;
+
+	if (api_version == 0) {
+		unsigned max_jump = luaL_checkint(L, 4);
+		unsigned max_drop = luaL_checkint(L, 5);
+
+		PathAlgorithm algo = PA_PLAIN_NP;
+		if (!lua_isnil(L, 6)) {
+			std::string algorithm = luaL_checkstring(L, 6);
+
+			if (algorithm == "A*")
+				algo = PA_PLAIN;
+
+			if (algorithm == "Dijkstra")
+				algo = PA_DIJKSTRA;
+		}
+
+		path = get_path(env, pos1, pos2, searchdistance, max_jump, max_drop, algo);
+
+	} else
+	{
+		BetterPathfinder bpf(env, searchdistance, pos1, pos2);
+
+		name_to_function<bool> bool_setters[] =
+		{
+			{ "swimming_above", &BetterPathfinder::set_swimming_above },
+			{ "swimming_surface", &BetterPathfinder::set_swimming_surface },
+			{ "swimming_below", &BetterPathfinder::set_swimming_below },
+			{ "swimming_wading", &BetterPathfinder::set_swimming_wading },
+		};
+
+		name_to_function<unsigned> unsigned_setters[] =
+		{
+			{ "max_drop_height", &BetterPathfinder::set_max_drop_height },
+			{ "max_jump_height", &BetterPathfinder::set_max_jump_height },
+			{ "height_required", &BetterPathfinder::set_height_required },
+		};
+
+		lua_pushnil(L);
+		while (lua_next(L, 4) != 0) {
+
+			bool was_handled = false;
+			std::string setting_name = lua_tostring(L, -2);
+
+			for (name_to_function<bool>* iter = bool_setters; iter != bool_setters+4; ++iter)
+			{
+				if (setting_name == iter->name)
+				{
+					was_handled = true;
+					bool argument = lua_toboolean(L, -1);
+					(bpf.*iter->function)(argument);
+				}
+			}
+
+			for (name_to_function<unsigned>* iter = unsigned_setters; iter != unsigned_setters+2; ++iter)
+			{
+				if (setting_name == iter->name)
+				{
+					was_handled = true;
+					int argument = luaL_checkint(L, -1);
+					(bpf.*iter->function)(argument);
+				}
+			}
+
+			if (!was_handled)
+				warningstream << "Argument to find_path was not used: " << setting_name << std::endl;
+
+			lua_pop(L, 1);
+		}
+
+		bpf.find_path(path);
 	}
-
-	std::vector<v3s16> path = get_path(env, pos1, pos2,
-		searchdistance, max_jump, max_drop, algo);
 
 	if (path.size() > 0)
 	{
