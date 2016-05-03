@@ -20,7 +20,14 @@ namespace std
 
 class BetterPathfinder
 {
-
+	struct to_visit_record
+	{
+		unsigned cost;
+		unsigned estimated_cost;
+		v3s16 pos;
+		v3s16 prev;
+		to_visit_record(unsigned cost, unsigned estimated_cost, v3s16 pos, v3s16 prev) :cost(cost), estimated_cost(estimated_cost), pos(pos), prev(prev){}
+	};
 
 
 public:
@@ -32,11 +39,12 @@ public:
 	void set_swimming_surface(bool swimming_surface);
 	void set_swimming_below(bool swimming_below);
 	void set_swimming_wading(bool swimming_wading);
+	void set_diagonally(bool diagonally);
 	bool find_path(std::vector<v3s16>& nodes);
 private:
-	void visit_node(v3s16& node);
+	void visit_node(const to_visit_record& record);
 	unsigned calculate_heuristic(v3s16& node);
-	void add_if_unvisited(v3s16& node, v3s16& from, unsigned cost);
+	void add_if_unvisited(v3s16& node, v3s16& from, unsigned cost, unsigned estimated_total_cost);
 
 
 	enum InvalidPositionReason
@@ -60,6 +68,7 @@ private:
 	bool swimming_surface;
 	bool swimming_below;
 	bool swimming_wading;
+	bool diagonally;
 	unsigned height_required;
 
 	struct NodeData
@@ -67,6 +76,7 @@ private:
 		v3s16 current;
 		v3s16 previous;
 		unsigned cost;
+		NodeData() :cost(UINT_MAX){}
 	};
 	class NodeDataMap
 	{
@@ -101,36 +111,14 @@ private:
 		const int number_buckets = 227;
 		std::vector<std::vector<NodeData> > m_data;
 	};
-	class NodeSet
+
+	struct priority_queue_comparer
 	{
-	public:
-		NodeSet(){
-			m_data.resize(number_buckets);
+		bool operator() (const to_visit_record& lhs, const to_visit_record& rhs) const{
+			return lhs.estimated_cost > rhs.estimated_cost;
 		}
-		void clear()
-		{
-			for (std::vector<std::vector<v3s16> >::iterator iter = m_data.begin(); iter != m_data.end(); ++iter)
-				iter->clear();
-		}
-		int count(const v3s16& p) const
-		{
-			const std::vector<v3s16>& bucket = m_data[std::hash<v3s16>()(p) % number_buckets];
-			return std::find(bucket.begin(), bucket.end(), p) != bucket.end() ? 1 : 0;
-		}
-		void insert(const v3s16& p)
-		{
-			std::vector<v3s16>& bucket = m_data[std::hash<v3s16>()(p) % number_buckets];
-			if (std::find(bucket.begin(), bucket.end(), p) != bucket.end())
-				return;
-			bucket.push_back(p);
-		}
-	private:
-		const int number_buckets = 227;
-		std::vector<std::vector<v3s16> > m_data;
 	};
 
-
-	static NodeSet visited_nodes;
-	std::list<std::pair<unsigned, v3s16>> to_visit;
+	std::priority_queue<to_visit_record, std::vector<to_visit_record>, priority_queue_comparer> to_visit;
 	static NodeDataMap nodes_data;
 };

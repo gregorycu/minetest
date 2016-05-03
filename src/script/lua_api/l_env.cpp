@@ -960,6 +960,7 @@ int ModApiEnvMod::l_find_path(lua_State *L)
 			{ "swimming_surface", &BetterPathfinder::set_swimming_surface },
 			{ "swimming_below", &BetterPathfinder::set_swimming_below },
 			{ "swimming_wading", &BetterPathfinder::set_swimming_wading },
+			{ "diagonally", &BetterPathfinder::set_diagonally },
 		};
 
 		name_to_function<unsigned> unsigned_setters[] =
@@ -975,7 +976,7 @@ int ModApiEnvMod::l_find_path(lua_State *L)
 			bool was_handled = false;
 			std::string setting_name = lua_tostring(L, -2);
 
-			for (name_to_function<bool>* iter = bool_setters; iter != bool_setters+4; ++iter)
+			for (name_to_function<bool>* iter = bool_setters; iter != bool_setters+5; ++iter)
 			{
 				if (setting_name == iter->name)
 				{

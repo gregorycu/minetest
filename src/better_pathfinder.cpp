@@ -12,8 +12,9 @@ env(env), maximum_distance(maximum_distance), start(start), end(end)
 	swimming_above = false;
 	swimming_surface = false;
 	swimming_below = false;
+	swimming_wading = false;
+	diagonally = false;
 	height_required = 1;
-	visited_nodes.clear();
 	nodes_data.clear();
 }
 
@@ -52,20 +53,27 @@ void BetterPathfinder::set_swimming_wading(bool swimming_wading)
 	this->swimming_wading = swimming_wading;
 }
 
+void BetterPathfinder::set_diagonally(bool diagonally)
+{
+	this->diagonally = diagonally;
+}
+
 bool BetterPathfinder::find_path(std::vector<v3s16>& nodes)
 {
-	add_if_unvisited(start, start, 0);
+ 	add_if_unvisited(start, start, 0, calculate_heuristic(end));
 
-	while (!to_visit.empty())
+ 	while (!to_visit.empty())
 	{
-		v3s16 node = to_visit.front().second;
-		to_visit.pop_front();
+		const to_visit_record& record = to_visit.top();
+		visit_node(record);
 
-		if (node == end)
+		if (record.pos == end)
 		{
-			NodeData* nd = &nodes_data[node];
+			NodeData* nd = &nodes_data[record.pos];
 
-			nodes.reserve(nd->cost);
+			nodes.reserve(100);
+
+			v3s16 node = record.pos;
 
 			while (node != nd->previous)
 			{
@@ -78,8 +86,7 @@ bool BetterPathfinder::find_path(std::vector<v3s16>& nodes)
 
 			return true;
 		}
-
-		visit_node(node);
+		to_visit.pop();
 	}
 
 	return false;
@@ -168,13 +175,25 @@ BetterPathfinder::InvalidPositionReason BetterPathfinder::is_invalid_position(co
 	return NOT_INVALID;
 }
 
-void BetterPathfinder::visit_node(v3s16& node)
+void BetterPathfinder::visit_node(const to_visit_record& record)
 {
-	visited_nodes.insert(node);
-	NodeData& nd = nodes_data[node];
+	//visited_nodes.insert(node);
+
+	NodeData& nd = nodes_data[record.pos];
+	bool visited = nd.cost != UINT_MAX;
+
+	if (record.cost < nd.cost)
+	{
+		nd.previous = record.prev;
+		nd.cost = record.cost;
+	}
+
+	if (visited)
+		return;
+
+	v3s16 node = record.pos;
 
 	v3s16 directions[4];
-
 	directions[0] = v3s16(1, 0, 0);
 	directions[1] = v3s16(-1, 0, 0);
 	directions[2] = v3s16(0, 0, 1);
@@ -203,8 +222,8 @@ void BetterPathfinder::visit_node(v3s16& node)
 			if (reason == WILL_DROWN)
 				break;
 
-			unsigned next_node_cost = nd.cost + 1 + calculate_heuristic(next_node + offset);
-			add_if_unvisited(next_node + offset, node, next_node_cost);
+			double next_node_cost = nd.cost + 10;
+			add_if_unvisited(next_node + offset, node, next_node_cost, next_node_cost + calculate_heuristic(next_node + offset));
 			break;
 		}
 
@@ -223,10 +242,40 @@ void BetterPathfinder::visit_node(v3s16& node)
 			if (reason != NOT_INVALID)
 				continue;
 
-			unsigned next_node_cost = nd.cost + 1 + calculate_heuristic(next_node + offset);
-			add_if_unvisited(next_node + offset, node, next_node_cost);
+			double next_node_cost = nd.cost + 10;
+			add_if_unvisited(next_node + offset, node, next_node_cost, next_node_cost + calculate_heuristic(next_node + offset));
 		}
 	}
+
+	if (diagonally)
+	{
+		v3s16 diagonal_directions[4];
+		diagonal_directions[0] = v3s16(1, 0, -1);
+		diagonal_directions[1] = v3s16(-1, 0, -1);
+		diagonal_directions[2] = v3s16(1, 0, 1);
+		diagonal_directions[3] = v3s16(-1, 0, 1);
+
+		for (v3s16* dir = diagonal_directions; dir != diagonal_directions + 4; ++dir)
+		{
+			v3s16 next_node = node + *dir;
+
+			if (is_invalid_position(next_node) != NOT_INVALID)
+				continue;
+
+			InvalidPositionReason x_reason = is_invalid_position(node + v3s16(dir->X, 0, 0));
+			if (x_reason != NOT_INVALID && x_reason != CANNOT_STAND)
+				continue;
+
+			InvalidPositionReason z_reason = is_invalid_position(node + v3s16(0, 0, dir->Z));
+			if (z_reason != NOT_INVALID && z_reason != CANNOT_STAND)
+				continue;
+
+			double next_node_cost = nd.cost + 15;
+			add_if_unvisited(next_node, node, next_node_cost, next_node_cost + calculate_heuristic(next_node));
+		}
+	}
+
+
 }
 
 unsigned BetterPathfinder::calculate_heuristic(v3s16& node)
@@ -236,48 +285,28 @@ unsigned BetterPathfinder::calculate_heuristic(v3s16& node)
 	int min_z = std::min(end.Z, node.Z);
 	int max_z = std::max(end.Z, node.Z);
 
-	return (max_x - min_x) + (max_z - min_z);
+	if (diagonally)
+	{
+		int dx = max_x - min_x;
+		int dy = max_z - min_z;
+
+		if (dx > dy)
+			return (dx - dy) * 10 + dy * 15;
+		else
+			return (dy - dx) * 10 + dx * 15;
+	}
+
+	return ((max_x - min_x) + (max_z - min_z)) * 10;
 }
 
-void BetterPathfinder::add_if_unvisited(v3s16& node, v3s16& from, unsigned cost)
+void BetterPathfinder::add_if_unvisited(v3s16& node, v3s16& from, unsigned cost, unsigned estimated_total_cost)
 {
-	// Check to see if we've already visited this node
-	if (visited_nodes.count(node) == 1)
+	// Insert it in the queue at the right place
+
+	if (estimated_total_cost > maximum_distance)
 		return;
 
-	// Try to find existing
-	std::list<std::pair<unsigned, v3s16>>::iterator tv = to_visit.begin();
-	while (tv != to_visit.end())
-	{
-		if (tv->second == node)
-			break;
-		++tv;
-	}
-
-	// If it already exists, see if we need to update cost if lower and re-insert
-	if (tv != to_visit.end())
-	{
-		if (cost >= tv->first)
-			return;
-
-		to_visit.erase(tv);
-	}
-
-	// Insert it in the queue at the right place
-	std::list<std::pair<unsigned, v3s16>>::iterator insert_position = to_visit.begin();
-	while (insert_position != to_visit.end())
-	{
-		if (insert_position->first > cost)
-			break;
-		++insert_position;
-	}
-	to_visit.insert(insert_position, std::make_pair(cost, node));
-
-	// Update/insert node data
-	NodeData& nd = nodes_data[node];
-	nd.previous = from;
-	nd.cost = cost;
+	to_visit.push(to_visit_record(cost, estimated_total_cost, node, from));
 }
 
-BetterPathfinder::NodeSet BetterPathfinder::visited_nodes;
 BetterPathfinder::NodeDataMap BetterPathfinder::nodes_data;
