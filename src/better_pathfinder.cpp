@@ -233,7 +233,7 @@ void BetterPathfinder::visit_node(const to_visit_record& record)
 			offset.Y = jump_distance;
 
 			// We don't want to hit our head when we jump
-			MapNode above_head = env->getMap().getNodeNoEx(node + offset);
+			MapNode above_head = env->getMap().getNodeNoEx(node + offset + v3s16(0, height_required-1,0));
 			if (ndef->get(above_head).walkable)
 				break;
 
