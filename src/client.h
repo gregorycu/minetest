@@ -127,7 +127,7 @@ public:
 	MeshUpdateThread() : UpdateThread("Mesh") {}
 
 	void enqueueUpdate(v3s16 p, MeshMakeData *data,
-			bool ack_block_to_server, bool urgent);
+		bool ack_block_to_server, bool urgent);
 	MutexedQueue<MeshUpdateResult> m_queue_out;
 
 	v3s16 m_camera_offset;
@@ -597,6 +597,7 @@ private:
 
 
 	MeshUpdateThread m_mesh_update_thread;
+	std::queue<MapBlockMesh*> m_meshes_to_delete;
 	ClientEnvironment m_env;
 	ParticleManager m_particle_manager;
 	con::Connection m_con;

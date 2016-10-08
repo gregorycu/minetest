@@ -66,12 +66,26 @@ public:
 	Mutex& operator[](v3s16 p)
 	{
 		MutexAutoLock lock(m_map_mutex);
-		return m_block_mutexes[p];
+
+		Mutex* &mutex = m_block_mutexes[p];
+
+		if (mutex == NULL)
+			mutex = new Mutex();
+
+		return *mutex;
+	}
+	~BlockLocker()
+	{
+		for (std::map<v3s16, Mutex*>::iterator iter = m_block_mutexes.begin();
+			iter != m_block_mutexes.end(); ++iter)
+		{
+			delete iter->second;
+		}
 	}
 
 private:
 	Mutex m_map_mutex;
-	std::map<v3s16, Mutex> m_block_mutexes;
+	std::map<v3s16, Mutex*> m_block_mutexes;
 };
 
 class ClientMap : public Map, public scene::ISceneNode

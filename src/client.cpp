@@ -546,7 +546,7 @@ void Client::step(float dtime)
 			if (block) {
 				// Delete the old mesh
 				if (block->mesh != NULL) {
-					delete block->mesh;
+					m_meshes_to_delete.push(block->mesh);
 					block->mesh = NULL;
 				}
 
@@ -557,13 +557,13 @@ void Client::step(float dtime)
 				}
 
 				if (r.mesh && r.mesh->getMesh()->getMeshBufferCount() == 0) {
-					delete r.mesh;
+					m_meshes_to_delete.push(r.mesh);
 				} else {
 					// Replace with the new mesh
 					block->mesh = r.mesh;
 				}
 			} else {
-				delete r.mesh;
+				m_meshes_to_delete.push(r.mesh);
 			}
 
 			if (do_mapper_update)
@@ -581,6 +581,19 @@ void Client::step(float dtime)
 
 		if (num_processed_meshes > 0)
 			g_profiler->graphAdd("num_processed_meshes", num_processed_meshes);
+	}
+
+	if (m_meshes_to_delete.size() > 10) {
+		while (!m_meshes_to_delete.empty()) {
+			delete m_meshes_to_delete.front();
+			m_meshes_to_delete.pop();
+		}
+			
+	}
+
+	if (!m_meshes_to_delete.empty()) {
+		delete m_meshes_to_delete.front();
+		m_meshes_to_delete.pop();
 	}
 
 	/*

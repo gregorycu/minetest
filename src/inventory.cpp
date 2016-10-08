@@ -60,7 +60,8 @@ static std::string serializeJsonStringIfNeeded(const std::string &s)
 // Parses a string serialized by serializeJsonStringIfNeeded.
 static std::string deSerializeJsonStringIfNeeded(std::istream &is)
 {
-	std::ostringstream tmp_os;
+	std::string output;
+	output.reserve(128);
 	bool expect_initial_quote = true;
 	bool is_json = false;
 	bool was_backslash = false;
@@ -71,12 +72,12 @@ static std::string deSerializeJsonStringIfNeeded(std::istream &is)
 			break;
 		if(expect_initial_quote && c == '"')
 		{
-			tmp_os << c;
+			output.push_back(c);
 			is_json = true;
 		}
 		else if(is_json)
 		{
-			tmp_os << c;
+			output.push_back(c);
 			if(was_backslash)
 				was_backslash = false;
 			else if(c == '\\')
@@ -94,18 +95,18 @@ static std::string deSerializeJsonStringIfNeeded(std::istream &is)
 			}
 			else
 			{
-				tmp_os << c;
+				output.push_back(c);
 			}
 		}
 		expect_initial_quote = false;
 	}
 	if(is_json)
 	{
-		std::istringstream tmp_is(tmp_os.str(), std::ios::binary);
+		std::istringstream tmp_is(output, std::ios::binary);
 		return deSerializeJsonString(tmp_is);
 	}
 	else
-		return tmp_os.str();
+		return output;
 }
 
 
@@ -451,11 +452,7 @@ InventoryList::~InventoryList()
 void InventoryList::clearItems()
 {
 	m_items.clear();
-
-	for(u32 i=0; i<m_size; i++)
-	{
-		m_items.push_back(ItemStack());
-	}
+	m_items.resize(m_size);
 
 	//setDirty(true);
 }
@@ -509,15 +506,16 @@ void InventoryList::deSerialize(std::istream &is)
 	u32 item_i = 0;
 	m_width = 0;
 
+	std::string line;
+	std::string name;
+
 	for(;;)
 	{
-		std::string line;
 		std::getline(is, line, '\n');
 
 		std::istringstream iss(line);
 		//iss.imbue(std::locale("C"));
 
-		std::string name;
 		std::getline(iss, name, ' ');
 
 		if(name == "EndInventoryList")
@@ -539,9 +537,8 @@ void InventoryList::deSerialize(std::istream &is)
 		{
 			if(item_i > getSize() - 1)
 				throw SerializationError("too many items");
-			ItemStack item;
-			item.deSerialize(iss, m_itemdef);
-			m_items[item_i++] = item;
+
+			m_items[item_i++].deSerialize(iss, m_itemdef);
 		}
 		else if(name == "Empty")
 		{
