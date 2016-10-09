@@ -583,7 +583,7 @@ void Client::step(float dtime)
 			g_profiler->graphAdd("num_processed_meshes", num_processed_meshes);
 	}
 
-	if (m_meshes_to_delete.size() > 10) {
+	if (m_meshes_to_delete.size() > 128) {
 		while (!m_meshes_to_delete.empty()) {
 			delete m_meshes_to_delete.front();
 			m_meshes_to_delete.pop();

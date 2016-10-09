@@ -214,6 +214,9 @@ void ClientMap::updateDrawList(video::IVideoDriver* driver)
 	// Distance to farthest drawn block
 	float farthest_drawn = 0;
 
+	bool free_move = g_settings->getBool("free_move");
+	MapBlockVect sectorblocks;
+
 	for (std::map<v2s16, MapSector*>::iterator si = m_sectors.begin();
 			si != m_sectors.end(); ++si) {
 		MapSector *sector = si->second;
@@ -225,7 +228,7 @@ void ClientMap::updateDrawList(video::IVideoDriver* driver)
 				continue;
 		}
 
-		MapBlockVect sectorblocks;
+		sectorblocks.clear();
 		sector->getBlocks(sectorblocks);
 
 		/*
@@ -281,7 +284,7 @@ void ClientMap::updateDrawList(video::IVideoDriver* driver)
 			// No occlusion culling when free_move is on and camera is
 			// inside ground
 			bool occlusion_culling_enabled = true;
-			if (g_settings->getBool("free_move")) {
+			if (free_move) {
 				MapNode n = getNodeNoEx(cam_pos_nodes);
 				if (n.getContent() == CONTENT_IGNORE ||
 						nodemgr->get(n).solidness == 2)
